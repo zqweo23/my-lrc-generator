@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>免費 AI 歌詞轉換器 (繁體版)</title>
+    <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.instance.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #f0f2052; padding: 20px; text-align: center; }
+        .box { max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        #status { margin: 20px 0; color: #666; font-size: 14px; }
+        .progress-bar { height: 10px; background: #eee; border-radius: 5px; overflow: hidden; display: none; }
+        .progress-fill { height: 100%; background: #007bff; width: 0%; transition: 0.3s; }
+        button { background: #28a745; color: white; border: none; padding: 12px 25px; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:disabled { background: #ccc; }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h2>🎵 免費 MP3 轉 LRC (繁體)</h2>
+    <p>第一次執行會下載 AI 模型 (約 75MB)，之後就會變快！</p>
+    
+    <label>選擇語言：</label>
+    <select id="langSelect">
+        <option value="chinese">中文 (自動識別粵語/普通話)</option>
+        <option value="english">英文 (English)</option>
+    </select>
+    <br><br>
+
+    <input type="file" id="audioUpload" accept="audio/*">
+    <br><br>
+    
+    <button id="startBtn">開始轉換 (全自動)</button>
+    
+    <div id="status">準備就緒</div>
+    <div class="progress-bar" id="progressBox"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+
+<script type="module">
+    // 引入 Hugging Face 的 Transformers.js
+    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0';
+
+    let transcriber;
+    const converter = OpenCC.Converter({ from: 'cn', to: 'tw' }); // 簡轉繁工具
+
+    async function init() {
+        if (!transcriber) {
+            document.getElementById('status').innerText = "正在加載 AI 模型...請稍候";
+            transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny');
+            document.getElementById('status').innerText = "模型載入完成！請上傳檔案";
+        }
+    }
+
+    document.getElementById('startBtn').onclick = async () => {
+        const file = document.getElementById('audioUpload').files[0];
+        if (!file) return alert("請先選檔案");
+
+        await init();
+        const startBtn = document.getElementById('startBtn');
+        startBtn.disabled = true;
+        document.getElementById('progressBox').style.display = 'block';
+        document.getElementById('status').innerText = "分析語音中...請勿關閉視窗";
+
+        // 讀取音檔
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        const arrayBuffer = await file.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        const float32Array = audioBuffer.getChannelData(0);
+
+        // 開始辨識
+        const output = await transcriber(float32Array, {
+            language: document.getElementById('langSelect').value,
+            chunk_length_s: 30,
+            stride_length_s: 5,
+            return_timestamps: true,
+            force_full_sequences: false
+        });
+
+        // 轉成 LRC 格式 + 繁體化
+        let lrcContent = "";
+        output.chunks.forEach(chunk => {
+            const time = formatTime(chunk.timestamp[0]);
+            const traditionalText = converter(chunk.text);
+            lrcContent += `[${time}]${traditionalText}\n`;
+        });
+
+        downloadLrc(file.name.replace(/\.[^/.]+$/, "") + ".lrc", lrcContent);
+        
+        document.getElementById('status').innerText = "完成！LRC 已下載";
+        startBtn.disabled = false;
+    };
+
+    function formatTime(seconds) {
+        const s = seconds || 0;
+        const min = Math.floor(s / 60).toString().padStart(2, '0');
+        const sec = Math.floor(s % 60).toString().padStart(2, '0');
+        const ms = Math.floor((s % 1) * 100).toString().padStart(2, '0');
+        return `${min}:${sec}.${ms}`;
+    }
+
+    function downloadLrc(name, content) {
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.click();
+    }
+</script>
+</body>
+</html>
