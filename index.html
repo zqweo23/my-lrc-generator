@@ -2,39 +2,40 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <title>AI 歌詞工具 - 穩定最終版</title>
+    <title>AI 歌詞工具 - 終極雙軌版</title>
     <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.instance.js"></script>
     <style>
-        body { font-family: sans-serif; background: #121212; color: #fff; padding: 20px; text-align: center; }
-        .main-card { max-width: 500px; margin: auto; background: #222; padding: 30px; border-radius: 20px; border: 1px solid #444; }
+        body { font-family: system-ui, sans-serif; background: #121212; color: #fff; padding: 20px; display: flex; justify-content: center; }
+        .main-card { max-width: 550px; width: 100%; background: #222; padding: 30px; border-radius: 15px; border: 1px solid #444; }
         
-        /* 進度條容器 */
-        .progress-box { width: 100%; background: #444; height: 20px; border-radius: 10px; margin: 20px 0; overflow: hidden; display: none; }
-        #progressBar { width: 0%; height: 100%; background: #888; transition: width 0.2s; }
-        
-        /* 狀態點 */
-        .status-dot { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .progress-box { width: 100%; background: #444; height: 15px; border-radius: 8px; margin: 20px 0; overflow: hidden; display: none; }
+        #progressBar { width: 0%; height: 100%; background: #888; transition: width 0.3s; }
+        /* 運算時的呼吸燈效果，證明網頁沒當機 */
+        .processing #progressBar { background: #4caf50; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+
+        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; background-color: #bbb; }
         .online { background-color: #4caf50; box-shadow: 0 0 8px #4caf50; }
+        .error { background-color: #f44336; box-shadow: 0 0 8px #f44336; }
         
-        #log { background: #000; color: #00ff00; text-align: left; font-family: monospace; padding: 10px; height: 130px; overflow-y: auto; font-size: 11px; margin-top: 20px; border-radius: 5px; border: 1px solid #333; }
+        #log { background: #000; color: #00ff00; padding: 12px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 12px; margin-top: 20px; border-radius: 6px; border: 1px solid #333; }
         
-        .btns { display: flex; flex-direction: column; gap: 10px; }
-        button { background: #007bff; color: white; border: none; padding: 15px; border-radius: 10px; cursor: pointer; font-size: 16px; width: 100%; }
-        button:disabled { background: #444; cursor: not-allowed; }
+        button { background: #007bff; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-size: 16px; width: 100%; font-weight: bold; margin-bottom: 10px;}
+        button:disabled { background: #444; color: #888; cursor: not-allowed; }
         
-        #downloadArea { display: none; background: #333; padding: 15px; border-radius: 10px; margin-top: 15px; border: 1px solid #4caf50; }
-        .dl-btn { background: #4caf50; margin-bottom: 5px; }
+        #downloadArea { display: none; background: rgba(76, 175, 80, 0.1); padding: 15px; border-radius: 8px; margin-top: 15px; border: 1px solid #4caf50; }
+        .dl-btn { background: #4caf50; }
         .cancel-btn { background: #f44336; }
 
-        input[type="file"] { margin: 20px 0; border: 1px dashed #666; padding: 20px; width: 90%; box-sizing: border-box; }
+        input[type="file"] { margin: 15px 0; border: 2px dashed #666; padding: 20px; width: 100%; box-sizing: border-box; background: #1a1a1a; color: white; border-radius: 8px;}
     </style>
 </head>
 <body>
 
 <div class="main-card">
-    <h2>🎵 AI 歌詞自動轉檔</h2>
-    <div style="font-size: 12px; margin-bottom: 20px;">
-        <span id="dot" class="status-dot"></span> 系統狀態: <span id="sysStatus">初始化中...</span>
+    <h2 style="margin-top:0;">🎵 AI 歌詞自動生成 (穩定版)</h2>
+    <div style="font-size: 13px; margin-bottom: 15px;">
+        <span id="dot" class="status-dot"></span> 狀態: <span id="sysStatus">系統初始化中...</span>
     </div>
 
     <input type="file" id="audioFile" accept="audio/*">
@@ -42,26 +43,19 @@
     <div class="progress-box" id="progressBox">
         <div id="progressBar"></div>
     </div>
-    <div id="percDisplay" style="font-size: 12px; color: #aaa;"></div>
+    <div id="percDisplay" style="font-size: 12px; color: #aaa; text-align: center;"></div>
 
-    <div class="btns">
-        <button id="goBtn" disabled>請先選擇檔案</button>
-    </div>
+    <button id="goBtn" disabled>請先選擇音樂檔案</button>
 
     <div id="downloadArea">
-        <button id="dlBtn" class="dl-btn">點擊下載專屬 LRC</button>
-        <button id="resetBtn" class="cancel-btn">取消並重來</button>
+        <button id="dlBtn" class="dl-btn">⬇️ 下載專屬 .LRC 檔案</button>
+        <button id="resetBtn" class="cancel-btn">🔄 取消並重來</button>
     </div>
     
-    <div id="log">系統日誌準備就緒...</div>
+    <div id="log">系統日誌準備就緒...<br></div>
 </div>
 
-<script type="module">
-    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.16.0';
-
-    // 關鍵設定：強制從遠端抓模型，不要找本地
-    env.allowLocalModels = false;
-
+<script>
     const logBox = document.getElementById('log');
     const goBtn = document.getElementById('goBtn');
     const dot = document.getElementById('dot');
@@ -70,131 +64,137 @@
     const progressBox = document.getElementById('progressBox');
     const percDisplay = document.getElementById('percDisplay');
     const downloadArea = document.getElementById('downloadArea');
+    const mainCard = document.querySelector('.main-card');
 
-    let transcriber = null;
+    let worker = null;
     let converter = null;
-    let lrcBlobUrl = null;
+    let originalFileName = "";
 
-    function writeLog(msg) {
+    function writeLog(msg, isError = false) {
         const time = new Date().toLocaleTimeString();
-        logBox.innerHTML += `[${time}] ${msg}<br>`;
+        const color = isError ? "#ff4444" : "#00ff00";
+        logBox.innerHTML += `<span style="color:${color}">[${time}] ${msg}</span><br>`;
         logBox.scrollTop = logBox.scrollHeight;
     }
 
     // 初始化簡繁轉換
-    try {
-        converter = OpenCC.Converter({ from: 'cn', to: 'tw' });
-    } catch(e) {
-        converter = (t) => t; 
-    }
-
     window.onload = () => {
-        dot.classList.add('online');
-        sysStatus.innerText = "連線正常";
-        writeLog("✅ 環境檢測通過。建議上傳 10MB 以內的檔案以防瀏覽器崩潰。");
+        try {
+            converter = OpenCC.Converter({ from: 'cn', to: 'tw' });
+            writeLog("✅ 簡繁轉換器就緒");
+        } catch(e) {
+            writeLog("⚠️ OpenCC 失敗，將輸出簡體", true);
+            converter = (t) => t; 
+        }
+
+        // 啟動後台 AI 工人 (Web Worker)
+        if (window.Worker) {
+            worker = new Worker('worker.js', { type: 'module' });
+            
+            worker.onmessage = function(e) {
+                const data = e.data;
+                
+                if (data.status === 'log') {
+                    writeLog(data.msg);
+                } else if (data.status === 'progress') {
+                    const pct = Math.round(data.progress);
+                    progressBar.style.width = pct + '%';
+                    percDisplay.innerText = `下載 AI 模型中: ${pct}%`;
+                } else if (data.status === 'processing') {
+                    // 開始運算，進度條變綠色呼吸燈
+                    progressBar.style.width = '100%';
+                    mainCard.classList.add('processing');
+                    sysStatus.innerText = "幕後 AI 狂奔中...";
+                    percDisplay.innerText = "AI 正在分析歌詞（網頁絕對不會卡死，請耐心等待）";
+                } else if (data.status === 'done') {
+                    mainCard.classList.remove('processing');
+                    processLyrics(data.chunks);
+                } else if (data.status === 'error') {
+                    mainCard.classList.remove('processing');
+                    writeLog(`❌ 錯誤: ${data.msg}`, true);
+                    dot.className = 'status-dot error';
+                    sysStatus.innerText = "發生錯誤";
+                    goBtn.disabled = false;
+                    goBtn.innerText = "重新嘗試";
+                }
+            };
+
+            dot.className = 'status-dot online';
+            sysStatus.innerText = "系統已就緒";
+            writeLog("🚀 雙軌系統啟動。防卡死機制已啟用。");
+        } else {
+            writeLog("❌ 你的瀏覽器太舊，不支援 Web Worker", true);
+            dot.className = 'status-dot error';
+        }
     };
 
     document.getElementById('audioFile').onchange = (e) => {
         if(e.target.files.length > 0) {
             goBtn.disabled = false;
-            goBtn.innerText = "開始 AI 辨識";
-            writeLog(`已選取: ${e.target.files[0].name}`);
+            goBtn.innerText = "🚀 開始轉化歌詞";
+            originalFileName = e.target.files[0].name;
+            writeLog(`已選取: ${originalFileName}`);
         }
     };
 
     goBtn.onclick = async () => {
         const file = document.getElementById('audioFile').files[0];
-        if(!file) return;
+        if(!file || !worker) return;
 
         goBtn.disabled = true;
         progressBox.style.display = 'block';
         progressBar.style.width = '0%';
-        progressBar.style.backgroundColor = '#888'; // 預設灰色
+        mainCard.classList.remove('processing');
         downloadArea.style.display = 'none';
 
         try {
-            if (!transcriber) {
-                writeLog("正在下載 AI 模型 (首次約 77MB)...");
-                transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
-                    progress_callback: (p) => {
-                        if(p.status === 'progress') {
-                            const pct = Math.round(p.progress);
-                            progressBar.style.width = pct + '%';
-                            percDisplay.innerText = `下載模型中: ${pct}%`;
-                        }
-                    }
-                });
-                writeLog("✅ 模型加載完成！");
-            }
-
-            // --- 進入運算階段 ---
-            // 變色：開始運算變綠色
-            progressBar.style.backgroundColor = '#4caf50'; 
-            percDisplay.innerText = "正在解碼音訊內容...";
-            writeLog("正在解碼音訊...");
-
+            writeLog("正在解碼音訊 (這一步由瀏覽器處理)...");
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
             const arrayBuffer = await file.arrayBuffer();
             const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
             const float32Data = audioBuffer.getChannelData(0);
 
-            writeLog(`開始辨識 ${Math.round(audioBuffer.duration)} 秒的音訊...`);
-            sysStatus.innerText = "AI 辨識中...";
-            percDisplay.innerText = "AI 正在分析歌詞 (這一步比較久，請勿關閉網頁)";
-
-            // 使用 setTimeout 確保 UI 會先更新，不讓網頁瞬間卡死
-            setTimeout(async () => {
-                try {
-                    const output = await transcriber(float32Data, {
-                        chunk_length_s: 30,
-                        stride_length_s: 5,
-                        language: 'chinese',
-                        task: 'transcribe',
-                        return_timestamps: true
-                    });
-
-                    writeLog("辨識完畢，正在轉為繁體 LRC...");
-                    let lrc = `[ti:${file.name}]\n[by:AI_LRC_Tool]\n`;
-                    
-                    output.chunks.forEach(chunk => {
-                        const timestamp = formatLrcTime(chunk.timestamp[0]);
-                        const text = converter(chunk.text.trim());
-                        lrc += `[${timestamp}]${text}\n`;
-                    });
-
-                    // 準備下載
-                    const blob = new Blob([lrc], { type: 'text/plain' });
-                    lrcBlobUrl = URL.createObjectURL(blob);
-                    
-                    progressBar.style.width = '100%';
-                    percDisplay.innerText = "轉換成功！";
-                    downloadArea.style.display = 'block';
-                    sysStatus.innerText = "完成";
-                    writeLog("🎉 完成！請下載檔案。");
-
-                    document.getElementById('dlBtn').onclick = () => {
-                        const a = document.createElement('a');
-                        a.href = lrcBlobUrl;
-                        a.download = file.name.replace(/\.[^/.]+$/, "") + ".lrc";
-                        a.click();
-                    };
-
-                } catch (innerErr) {
-                    writeLog(`❌ 辨識出錯: ${innerErr.message}`);
-                }
-            }, 100);
+            writeLog(`音訊解碼完成 (${Math.round(audioBuffer.duration)} 秒)。已交給後台 AI 處理。`);
+            
+            // 把解碼好的音訊丟給後台 worker 處理
+            worker.postMessage({ audio: float32Data });
 
         } catch (err) {
-            writeLog(`❌ 系統錯誤: ${err.message}`);
-            sysStatus.innerText = "發生錯誤";
-        } finally {
-            goBtn.innerText = "轉換完成";
+            writeLog(`❌ 音訊解碼失敗: ${err.message}`, true);
+            goBtn.disabled = false;
         }
     };
 
-    document.getElementById('resetBtn').onclick = () => {
-        location.reload(); 
-    };
+    function processLyrics(chunks) {
+        writeLog("✅ 接收到 AI 數據，正在轉換繁體並打包 LRC...");
+        let lrc = `[ti:${originalFileName.replace(/\.[^/.]+$/, "")}]\n[by:AI_LRC_Generator]\n`;
+        
+        if (chunks && chunks.length > 0) {
+            chunks.forEach(chunk => {
+                const timestamp = formatLrcTime(chunk.timestamp[0]);
+                const text = converter(chunk.text.trim());
+                if (text) lrc += `[${timestamp}]${text}\n`;
+            });
+        } else {
+            writeLog("⚠️ AI 沒有聽出任何歌詞", true);
+        }
+
+        const blob = new Blob([lrc], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        
+        percDisplay.innerText = "🎉 轉換完成！";
+        sysStatus.innerText = "閒置中";
+        downloadArea.style.display = 'block';
+
+        document.getElementById('dlBtn').onclick = () => {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = originalFileName.replace(/\.[^/.]+$/, "") + ".lrc";
+            a.click();
+        };
+    }
+
+    document.getElementById('resetBtn').onclick = () => location.reload();
 
     function formatLrcTime(seconds) {
         const s = seconds || 0;
