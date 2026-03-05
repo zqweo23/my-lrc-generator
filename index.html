@@ -2,208 +2,216 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <title>AI 歌詞工具 - 終極雙軌版</title>
+    <title>AI 歌詞生成器 Pro - 監控版</title>
     <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.instance.js"></script>
     <style>
-        body { font-family: system-ui, sans-serif; background: #121212; color: #fff; padding: 20px; display: flex; justify-content: center; }
-        .main-card { max-width: 550px; width: 100%; background: #222; padding: 30px; border-radius: 15px; border: 1px solid #444; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; padding: 20px; display: flex; justify-content: center; }
+        .main-card { max-width: 600px; width: 100%; background: #1a1a1a; padding: 30px; border-radius: 15px; border: 1px solid #333; box-shadow: 0 15px 35px rgba(0,0,0,0.7); }
         
-        .progress-box { width: 100%; background: #444; height: 15px; border-radius: 8px; margin: 20px 0; overflow: hidden; display: none; }
-        #progressBar { width: 0%; height: 100%; background: #888; transition: width 0.3s; }
-        /* 運算時的呼吸燈效果，證明網頁沒當機 */
-        .processing #progressBar { background: #4caf50; animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+        /* 進度條樣式 */
+        .progress-container { width: 100%; background: #333; height: 18px; border-radius: 9px; margin: 20px 0; overflow: hidden; display: none; border: 1px solid #444; }
+        #progressBar { width: 0%; height: 100%; background: #888; transition: width 0.4s ease; }
+        
+        /* 運行中的綠色呼吸效果 */
+        .is-working #progressBar { background: #2ecc71; box-shadow: 0 0 15px #27ae60; animation: glow 1.5s infinite; }
+        @keyframes glow { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
 
-        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; background-color: #bbb; }
-        .online { background-color: #4caf50; box-shadow: 0 0 8px #4caf50; }
-        .error { background-color: #f44336; box-shadow: 0 0 8px #f44336; }
+        .status-bar { font-size: 13px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .dot { height: 10px; width: 10px; border-radius: 50%; background: #666; }
+        .dot.active { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
         
-        #log { background: #000; color: #00ff00; padding: 12px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 12px; margin-top: 20px; border-radius: 6px; border: 1px solid #333; }
+        #log { background: #000; color: #00ff00; padding: 15px; height: 180px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 12px; border-radius: 8px; border: 1px solid #333; line-height: 1.5; }
         
-        button { background: #007bff; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-size: 16px; width: 100%; font-weight: bold; margin-bottom: 10px;}
-        button:disabled { background: #444; color: #888; cursor: not-allowed; }
+        .control-panel { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+        button { padding: 16px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; font-size: 16px; transition: 0.3s; }
+        #goBtn { background: #3498db; color: white; }
+        #goBtn:disabled { background: #444; color: #888; cursor: not-allowed; }
         
-        #downloadArea { display: none; background: rgba(76, 175, 80, 0.1); padding: 15px; border-radius: 8px; margin-top: 15px; border: 1px solid #4caf50; }
-        .dl-btn { background: #4caf50; }
-        .cancel-btn { background: #f44336; }
+        #downloadArea { display: none; margin-top: 20px; border-top: 1px solid #333; padding-top: 20px; }
+        .btn-success { background: #2ecc71; color: white; width: 100%; }
+        .btn-danger { background: #e74c3c; color: white; width: 100%; margin-top: 10px; }
 
-        input[type="file"] { margin: 15px 0; border: 2px dashed #666; padding: 20px; width: 100%; box-sizing: border-box; background: #1a1a1a; color: white; border-radius: 8px;}
+        input[type="file"] { background: #252525; padding: 20px; border: 2px dashed #444; border-radius: 10px; width: 100%; box-sizing: border-box; cursor: pointer; color: #aaa; }
     </style>
 </head>
 <body>
 
 <div class="main-card">
-    <h2 style="margin-top:0;">🎵 AI 歌詞自動生成 (穩定版)</h2>
-    <div style="font-size: 13px; margin-bottom: 15px;">
-        <span id="dot" class="status-dot"></span> 狀態: <span id="sysStatus">系統初始化中...</span>
+    <div class="status-bar">
+        <div id="dot" class="dot"></div>
+        <span>系統狀態: <strong id="sysStatus">初始化中...</strong></span>
     </div>
 
     <input type="file" id="audioFile" accept="audio/*">
     
-    <div class="progress-box" id="progressBox">
+    <div class="progress-container" id="pContainer">
         <div id="progressBar"></div>
     </div>
-    <div id="percDisplay" style="font-size: 12px; color: #aaa; text-align: center;"></div>
+    <div id="progressText" style="text-align: center; font-size: 12px; color: #999; margin-bottom: 10px;"></div>
 
-    <button id="goBtn" disabled>請先選擇音樂檔案</button>
+    <div class="control-panel">
+        <button id="goBtn" disabled>等待上傳檔案</button>
+    </div>
 
     <div id="downloadArea">
-        <button id="dlBtn" class="dl-btn">⬇️ 下載專屬 .LRC 檔案</button>
-        <button id="resetBtn" class="cancel-btn">🔄 取消並重來</button>
+        <button id="dlBtn" class="btn-success">⬇️ 下載 .LRC 歌詞檔案</button>
+        <button id="resetBtn" class="btn-danger">❌ 清除並重新開始</button>
     </div>
     
-    <div id="log">系統日誌準備就緒...<br></div>
+    <div id="log">--- 系統日誌啟動 ---<br></div>
 </div>
 
 <script>
     const logBox = document.getElementById('log');
     const goBtn = document.getElementById('goBtn');
-    const dot = document.getElementById('dot');
     const sysStatus = document.getElementById('sysStatus');
     const progressBar = document.getElementById('progressBar');
-    const progressBox = document.getElementById('progressBox');
-    const percDisplay = document.getElementById('percDisplay');
+    const pContainer = document.getElementById('pContainer');
+    const progressText = document.getElementById('progressText');
     const downloadArea = document.getElementById('downloadArea');
-    const mainCard = document.querySelector('.main-card');
+    const dot = document.getElementById('dot');
 
     let worker = null;
     let converter = null;
-    let originalFileName = "";
+    let fileName = "";
+    let virtualTimer = null;
 
     function writeLog(msg, isError = false) {
         const time = new Date().toLocaleTimeString();
-        const color = isError ? "#ff4444" : "#00ff00";
-        logBox.innerHTML += `<span style="color:${color}">[${time}] ${msg}</span><br>`;
+        const color = isError ? "#ff4757" : "#2ecc71";
+        logBox.innerHTML += `[${time}] <span style="color:${color}">${msg}</span><br>`;
         logBox.scrollTop = logBox.scrollHeight;
     }
 
     // 初始化簡繁轉換
+    try {
+        converter = OpenCC.Converter({ from: 'cn', to: 'tw' });
+    } catch(e) {
+        converter = (t) => t;
+    }
+
     window.onload = () => {
-        try {
-            converter = OpenCC.Converter({ from: 'cn', to: 'tw' });
-            writeLog("✅ 簡繁轉換器就緒");
-        } catch(e) {
-            writeLog("⚠️ OpenCC 失敗，將輸出簡體", true);
-            converter = (t) => t; 
+        if (!window.Worker) {
+            writeLog("錯誤：你的瀏覽器不支援 Web Worker，無法運行。", true);
+            return;
         }
 
-        // 啟動後台 AI 工人 (Web Worker)
-        if (window.Worker) {
-            worker = new Worker('worker.js', { type: 'module' });
+        // 啟動幕後工人
+        worker = new Worker('worker.js', { type: 'module' });
+
+        worker.onmessage = (e) => {
+            const data = e.data;
+            if (data.status === 'log') writeLog(data.msg);
             
-            worker.onmessage = function(e) {
-                const data = e.data;
-                
-                if (data.status === 'log') {
-                    writeLog(data.msg);
-                } else if (data.status === 'progress') {
-                    const pct = Math.round(data.progress);
-                    progressBar.style.width = pct + '%';
-                    percDisplay.innerText = `下載 AI 模型中: ${pct}%`;
-                } else if (data.status === 'processing') {
-                    // 開始運算，進度條變綠色呼吸燈
-                    progressBar.style.width = '100%';
-                    mainCard.classList.add('processing');
-                    sysStatus.innerText = "幕後 AI 狂奔中...";
-                    percDisplay.innerText = "AI 正在分析歌詞（網頁絕對不會卡死，請耐心等待）";
-                } else if (data.status === 'done') {
-                    mainCard.classList.remove('processing');
-                    processLyrics(data.chunks);
-                } else if (data.status === 'error') {
-                    mainCard.classList.remove('processing');
-                    writeLog(`❌ 錯誤: ${data.msg}`, true);
-                    dot.className = 'status-dot error';
-                    sysStatus.innerText = "發生錯誤";
-                    goBtn.disabled = false;
-                    goBtn.innerText = "重新嘗試";
-                }
-            };
+            if (data.status === 'model-progress') {
+                const p = Math.round(data.progress);
+                progressBar.style.width = p + '%';
+                progressText.innerText = `📦 模型下載中... ${p}%`;
+            }
 
-            dot.className = 'status-dot online';
-            sysStatus.innerText = "系統已就緒";
-            writeLog("🚀 雙軌系統啟動。防卡死機制已啟用。");
-        } else {
-            writeLog("❌ 你的瀏覽器太舊，不支援 Web Worker", true);
-            dot.className = 'status-dot error';
-        }
+            if (data.status === 'working') {
+                // 模型好了，開始算歌詞
+                pContainer.classList.add('is-working');
+                sysStatus.innerText = "AI 辨識中";
+                startVirtualProgress();
+            }
+
+            if (data.status === 'done') {
+                finishJob(data.chunks);
+            }
+
+            if (data.status === 'error') {
+                writeLog("崩潰報錯: " + data.msg, true);
+                stopVirtualProgress();
+                goBtn.disabled = false;
+            }
+        };
+
+        dot.classList.add('active');
+        sysStatus.innerText = "就緒";
+        writeLog("系統已就緒，請上傳 MP3。");
     };
 
     document.getElementById('audioFile').onchange = (e) => {
         if(e.target.files.length > 0) {
+            fileName = e.target.files[0].name;
             goBtn.disabled = false;
-            goBtn.innerText = "🚀 開始轉化歌詞";
-            originalFileName = e.target.files[0].name;
-            writeLog(`已選取: ${originalFileName}`);
+            goBtn.innerText = "🚀 開始 AI 轉化";
+            writeLog(`已選取: ${fileName}`);
         }
     };
 
     goBtn.onclick = async () => {
         const file = document.getElementById('audioFile').files[0];
-        if(!file || !worker) return;
-
         goBtn.disabled = true;
-        progressBox.style.display = 'block';
+        pContainer.style.display = 'block';
         progressBar.style.width = '0%';
-        mainCard.classList.remove('processing');
-        downloadArea.style.display = 'none';
+        progressBar.style.background = '#888'; // 下載時灰色
 
         try {
-            writeLog("正在解碼音訊 (這一步由瀏覽器處理)...");
+            writeLog("正在解碼音訊（這一步最吃記憶體）...");
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
             const arrayBuffer = await file.arrayBuffer();
             const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
             const float32Data = audioBuffer.getChannelData(0);
 
-            writeLog(`音訊解碼完成 (${Math.round(audioBuffer.duration)} 秒)。已交給後台 AI 處理。`);
-            
-            // 把解碼好的音訊丟給後台 worker 處理
+            writeLog("音訊準備完畢，交給幕後 AI 處理。");
             worker.postMessage({ audio: float32Data });
-
         } catch (err) {
-            writeLog(`❌ 音訊解碼失敗: ${err.message}`, true);
+            writeLog("音訊出錯: " + err.message, true);
             goBtn.disabled = false;
         }
     };
 
-    function processLyrics(chunks) {
-        writeLog("✅ 接收到 AI 數據，正在轉換繁體並打包 LRC...");
-        let lrc = `[ti:${originalFileName.replace(/\.[^/.]+$/, "")}]\n[by:AI_LRC_Generator]\n`;
-        
-        if (chunks && chunks.length > 0) {
-            chunks.forEach(chunk => {
-                const timestamp = formatLrcTime(chunk.timestamp[0]);
-                const text = converter(chunk.text.trim());
-                if (text) lrc += `[${timestamp}]${text}\n`;
-            });
-        } else {
-            writeLog("⚠️ AI 沒有聽出任何歌詞", true);
-        }
+    function startVirtualProgress() {
+        let vPct = 10;
+        progressBar.style.background = '#2ecc71'; // 運作變綠色
+        virtualTimer = setInterval(() => {
+            if (vPct < 98) {
+                vPct += 0.1; // 慢慢爬，讓你知道它沒死
+                progressBar.style.width = vPct + '%';
+                progressText.innerText = `AI 正在聽歌... 預估進度: ${Math.floor(vPct)}%`;
+            }
+        }, 800);
+    }
+
+    function stopVirtualProgress() {
+        clearInterval(virtualTimer);
+    }
+
+    function finishJob(chunks) {
+        stopVirtualProgress();
+        progressBar.style.width = '100%';
+        progressText.innerText = "🎉 轉換成功！";
+        writeLog("✅ AI 任務完成，正在生成檔案...");
+
+        let lrc = `[ti:${fileName}]\n[by:Gemini_AI_Worker]\n`;
+        chunks.forEach(c => {
+            const time = formatLrcTime(c.timestamp[0]);
+            const text = converter(c.text.trim());
+            if(text) lrc += `[${time}]${text}\n`;
+        });
 
         const blob = new Blob([lrc], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         
-        percDisplay.innerText = "🎉 轉換完成！";
-        sysStatus.innerText = "閒置中";
         downloadArea.style.display = 'block';
-
         document.getElementById('dlBtn').onclick = () => {
             const a = document.createElement('a');
             a.href = url;
-            a.download = originalFileName.replace(/\.[^/.]+$/, "") + ".lrc";
+            a.download = fileName.replace(/\.[^/.]+$/, "") + ".lrc";
             a.click();
         };
     }
 
     document.getElementById('resetBtn').onclick = () => location.reload();
 
-    function formatLrcTime(seconds) {
-        const s = seconds || 0;
+    function formatLrcTime(s = 0) {
         const mm = Math.floor(s / 60).toString().padStart(2, '0');
         const ss = Math.floor(s % 60).toString().padStart(2, '0');
         const xx = Math.floor((s % 1) * 100).toString().padStart(2, '0');
         return `${mm}:${ss}.${xx}`;
     }
 </script>
-
 </body>
 </html>
