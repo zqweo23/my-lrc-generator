@@ -2,137 +2,120 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>免費 AI 歌詞轉換器 (進階版)</title>
+    <title>AI 歌詞工具 - 強力診斷版</title>
     <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.instance.js"></script>
     <style>
-        body { font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; background: #f4f7f9; padding: 20px; display: flex; justify-content: center; }
-        .card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 550px; text-align: center; }
-        h2 { color: #2c3e50; margin-bottom: 10px; }
-        .setup-info { font-size: 13px; color: #7f8c8d; margin-bottom: 20px; }
-        select, input, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #dcdfe6; font-size: 15px; box-sizing: border-box; }
-        button { background: #409eff; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        button:hover { background: #66b1ff; }
-        button:disabled { background: #a0cfff; cursor: not-allowed; }
-        
-        /* 進度條樣式 */
-        .progress-container { width: 100%; background: #ebeef5; border-radius: 10px; margin: 20px 0; display: none; overflow: hidden; }
-        .progress-bar { height: 12px; background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%); width: 0%; transition: width 0.2s; }
-        #status { font-size: 14px; color: #606266; margin-bottom: 5px; }
+        body { font-family: sans-serif; background: #1a1a1a; color: #eee; padding: 20px; line-height: 1.5; }
+        .container { max-width: 600px; margin: auto; background: #2d2d2d; padding: 25px; border-radius: 12px; }
+        #logBox { background: #000; color: #0f0; font-family: monospace; padding: 10px; height: 200px; overflow-y: auto; font-size: 12px; border-radius: 5px; margin-top: 15px; }
+        button { background: #4caf50; color: white; border: none; padding: 15px; width: 100%; border-radius: 8px; cursor: pointer; font-size: 18px; }
+        button:disabled { background: #555; }
+        progress { width: 100%; height: 20px; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h2>🎵 AI 歌詞自動轉換 (免費版)</h2>
-    <p class="setup-info">支援 10 分鐘長歌曲 • 自動轉繁體 • 無需 API Key</p>
-
-    <label style="text-align: left; display: block;">選擇識別語言：</label>
-    <select id="langSelect">
-        <option value="chinese">中文 (自動識別 普通話/粵語)</option>
-        <option value="english">英文 (English)</option>
-    </select>
-
-    <input type="file" id="audioUpload" accept="audio/*">
+<div class="container">
+    <h2>🛠️ AI 轉歌詞 (自動繁體版)</h2>
+    <p style="color: #aaa;">支援長音檔 • 純瀏覽器運算</p>
     
-    <button id="startBtn">載入模型並開始轉換</button>
+    <input type="file" id="audioUpload" accept="audio/*" style="margin-bottom: 20px;">
+    <button id="startBtn">啟動 AI 並轉換</button>
 
-    <div id="progressBox" class="progress-container">
-        <div id="progressFill" class="progress-bar"></div>
-    </div>
-    <div id="status">準備就緒</div>
+    <div id="status" style="margin-top: 15px; font-weight: bold;">目前狀態：等待指令</div>
+    <progress id="pBar" value="0" max="100" style="display:none;"></progress>
+    
+    <div id="logBox">系統日誌 (若沒反應請截圖此區)：<br></div>
 </div>
 
 <script type="module">
-    // 引入 Hugging Face 的 Transformers.js
     import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0';
 
+    const log = (msg) => {
+        const box = document.getElementById('logBox');
+        box.innerHTML += `> ${msg}<br>`;
+        box.scrollTop = box.scrollHeight;
+        console.log(msg);
+    };
+
+    const converter = OpenCC.Converter({ from: 'cn', to: 'tw' });
     let transcriber = null;
-    const converter = OpenCC.Converter({ from: 'cn', to: 'tw' }); // 簡轉繁
 
-    const startBtn = document.getElementById('startBtn');
-    const status = document.getElementById('status');
-    const progressBox = document.getElementById('progressBox');
-    const progressFill = document.getElementById('progressFill');
-
-    // 核心處理函數
-    async function runTranscription() {
+    document.getElementById('startBtn').onclick = async () => {
         const file = document.getElementById('audioUpload').files[0];
-        if (!file) {
-            alert("請先選擇音檔！");
-            return;
-        }
+        if (!file) return alert("請先選檔案！");
 
-        startBtn.disabled = true;
-        progressBox.style.display = 'block';
+        const btn = document.getElementById('startBtn');
+        const pBar = document.getElementById('pBar');
+        btn.disabled = true;
+        pBar.style.display = 'block';
 
         try {
-            // 1. 初始化模型 (帶有進度回傳)
+            log("正在初始化環境...");
             if (!transcriber) {
-                status.innerText = "正在下載 AI 模型 (初次使用較慢)...";
+                log("正在下載 AI 模型 (約 77MB)，請不要離開...");
                 transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
-                    progress_callback: (data) => {
-                        if (data.status === 'progress') {
-                            progressFill.style.width = data.progress + '%';
-                            status.innerText = `模型下載中: ${Math.round(data.progress)}%`;
+                    progress_callback: (d) => {
+                        if (d.status === 'progress') {
+                            pBar.value = d.progress;
+                            document.getElementById('status').innerText = `下載中: ${Math.round(d.progress)}%`;
                         }
                     }
                 });
+                log("✅ 模型載入成功！");
             }
 
-            status.innerText = "⏳ 正在讀取並解碼音檔...";
-            progressFill.style.width = '10%';
-
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            log(`讀取音檔: ${file.name} (${Math.round(file.size/1024/1024)}MB)`);
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            
+            log("正在解碼音訊 (這步驟最吃記憶體)...");
             const arrayBuffer = await file.arrayBuffer();
-            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
             const float32Array = audioBuffer.getChannelData(0);
+            log(`解碼完成，時長: ${Math.round(audioBuffer.duration)} 秒`);
 
-            status.innerText = "🚀 AI 正在辨識歌詞 (10分鐘音檔約需處理 2-3 分鐘)...";
+            log("🚀 AI 開始辨識 (長歌曲會分段處理)...");
+            document.getElementById('status').innerText = "AI 正在聽歌中...請稍候";
             
-            // 2. 執行辨識 (支援長音檔的 chunk 邏輯)
-            const result = await transcriber(float32Array, {
-                language: document.getElementById('langSelect').value,
-                chunk_length_s: 30, // 分段處理，避免長音檔崩潰
+            const output = await transcriber(float32Array, {
+                language: 'chinese',
+                chunk_length_s: 30,
                 stride_length_s: 5,
-                return_timestamps: true,
-                force_full_sequences: false
+                return_timestamps: true
             });
 
-            // 3. 轉為 LRC 格式 + 繁體化
-            status.innerText = "📝 正在生成繁體 LRC 檔案...";
-            let lrcContent = "[tool:AI Lrc Generator]\n[by:Gemini]\n";
-            
-            result.chunks.forEach(chunk => {
-                const startTime = formatTime(chunk.timestamp[0]);
-                const traditionalText = converter(chunk.text.trim());
-                if (traditionalText) {
-                    lrcContent += `[${startTime}]${traditionalText}\n`;
-                }
+            log("正在生成繁體 LRC...");
+            let lrc = "";
+            output.chunks.forEach(c => {
+                const time = formatTime(c.timestamp[0]);
+                lrc += `[${time}]${converter(c.text.trim())}\n`;
             });
 
-            // 4. 下載
-            downloadFile(file.name.replace(/\.[^/.]+$/, "") + ".lrc", lrcContent);
+            const blob = new Blob([lrc], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = file.name.replace(/\.[^/.]+$/, "") + ".lrc";
+            a.click();
             
-            status.innerText = "✅ 轉換完成！已自動下載";
-            progressFill.style.width = '100%';
+            log("🎉 轉換成功！檔案已彈出下載");
+            document.getElementById('status').innerText = "✅ 完成！";
 
-        } catch (error) {
-            console.error(error);
-            status.innerText = "❌ 發生錯誤: " + error.message;
+        } catch (e) {
+            log(`❌ 錯誤: ${e.message}`);
+            document.getElementById('status').innerText = "發生錯誤";
         } finally {
-            startBtn.disabled = false;
+            btn.disabled = false;
         }
-    }
+    };
 
-    // 時間格式化: 00:00.00
-    function formatTime(seconds) {
-        const s = seconds || 0;
-        const min = Math.floor(s / 60).toString().padStart(2, '0');
+    function formatTime(s = 0) {
+        const m = Math.floor(s / 60).toString().padStart(2, '0');
         const sec = Math.floor(s % 60).toString().padStart(2, '0');
         const ms = Math.floor((s % 1) * 100).toString().padStart(2, '0');
-        return `${min}:${sec}.${ms}`;
+        return `${m}:${sec}.${ms}`;
     }
+</script>
 
-    function downloadFile(filename, text) {
-        const blob = new Blob(
+</body>
+</html>
